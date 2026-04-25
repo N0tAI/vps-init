@@ -17,6 +17,38 @@
 
   tasks:
     # =========================================================================
+    # 0. Validate sshd_config on target before making ANY changes
+    # =========================================================================
+    - name: Validate sshd_config on target before changes
+      block:
+        - name: Copy sshd_config to temporary location for validation
+          ansible.builtin.copy:
+            src: "{{ sshd_config_src }}"
+            dest: /tmp/ssh_config.new
+            owner: root
+            group: root
+            mode: "0644"
+
+        - name: Validate temporary sshd_config
+          ansible.builtin.command:
+            cmd: /usr/sbin/sshd -t -f /tmp/ssh_config.new
+          changed_when: false
+      rescue:
+        - name: Remove invalid temporary sshd_config
+          ansible.builtin.file:
+            path: /tmp/ssh_config.new
+            state: absent
+
+        - name: Fail playbook due to invalid sshd_config
+          ansible.builtin.fail:
+            msg: "sshd_config validation failed. Playbook aborted to prevent lockout."
+      always:
+        - name: Clean up temporary sshd_config
+          ansible.builtin.file:
+            path: /tmp/ssh_config.new
+            state: absent
+
+    # =========================================================================
     # 1. Override ssh.socket to listen ONLY on port 49152
     # =========================================================================
     - name: Ensure ssh.socket override directory exists
@@ -109,7 +141,6 @@
         owner: root
         group: root
         mode: "0644"
-        validate: /usr/sbin/sshd -t -f %s
       notify: Restart ssh.service
 
     # =========================================================================
