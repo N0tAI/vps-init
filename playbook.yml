@@ -8,21 +8,12 @@
     # ---------------------------------------------------------------------------
     # SECRETS: Provide these via Ansible Vault, extra-vars, or a vars file.
     # If a value is omitted/empty, the playbook will fall back securely:
-    #   - thayen_password: unset/empty -> force password expiry on first login
     #   - thayen_ssh_public_key: unset/empty -> skip authorized_key deployment
     # ---------------------------------------------------------------------------
 
-    # thayen_password: !vault |
-    #   $ANSIBLE_VAULT;1.1;AES256
-    #   ...
-
     # thayen_ssh_public_key: "ssh-ed25519 AAAAC3..."
 
-    # ---------------------------------------------------------------------------
-    # REQUIRED: Path to the sshd_config file you want to deploy.
-    # This path is relative to the playbook directory or an absolute path.
-    # ---------------------------------------------------------------------------
-    sshd_config_src: "files/sshd_config"
+    sshd_config_src: "sshd_config"
 
   tasks:
     # =========================================================================
@@ -74,14 +65,12 @@
         home: /home/thayen
         groups: sudo
         append: true
-        password: "{{ thayen_password | default(omit) }}"
         state: present
       no_log: true
 
-    - name: Force password change on first login (if no password supplied)
+    - name: Force password change on first login
       ansible.builtin.command:
         cmd: chage -d 0 thayen
-      when: thayen_password | default('') | length == 0
       changed_when: true
       no_log: true
 
