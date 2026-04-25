@@ -16,9 +16,7 @@
     sshd_config_src: "sshd_config"
 
   tasks:
-    # =========================================================================
-    # 0. Validate sshd_config on target before making ANY changes
-    # =========================================================================
+    # Quick validation to ensure sshd_config is valid before working
     - name: Validate sshd_config on target before changes
       block:
         - name: Copy sshd_config to temporary location for validation
@@ -48,9 +46,7 @@
             path: /tmp/ssh_config.new
             state: absent
 
-    # =========================================================================
-    # 1. Override ssh.socket to listen ONLY on port 49152
-    # =========================================================================
+    # Change ssh to listen at port 49152
     - name: Ensure ssh.socket override directory exists
       ansible.builtin.file:
         path: /etc/systemd/system/ssh.socket.d
@@ -71,25 +67,25 @@
           ListenStream=49152
       notify: Restart ssh.socket
 
-    # =========================================================================
-    # 2. Reload systemd daemon
-    # =========================================================================
     - name: Reload systemd daemon
       ansible.builtin.systemd_service:
         daemon_reload: true
 
-    # =========================================================================
-    # 3. Enable the socket
-    # =========================================================================
+    - name: Disable ssh.service so it starts via socket
+      ansible.builtin.systemd_service:
+        name: ssh.service
+        enabled: false
+        state: stopped
+
     - name: Enable and start ssh.socket
       ansible.builtin.systemd_service:
         name: ssh.socket
         enabled: true
         state: started
 
-    # =========================================================================
-    # 4. Create user thayen
-    # =========================================================================
+    # TODO: instead of a new user why not just rename `debian`?
+
+    # Create new admin user
     - name: Create user thayen
       ansible.builtin.user:
         name: thayen
@@ -131,9 +127,7 @@
         group: thayen
         mode: "0600"
 
-    # =========================================================================
-    # 5. Overwrite default sshd_config
-    # =========================================================================
+    # Change ssh config
     - name: Deploy custom sshd_config
       ansible.builtin.copy:
         src: "{{ sshd_config_src }}"
@@ -141,18 +135,32 @@
         owner: root
         group: root
         mode: "0644"
+        validate: /usr/sbin/sshd -t -f %s
       notify: Restart ssh.service
 
-    # =========================================================================
-    # 6. Disable debian user login (do NOT remove password)
-    #    Equivalent to: usermod -e 1 -L debian && usermod -s /usr/sbin/nologin debian
-    # =========================================================================
+    # Disable default admin account
     - name: Disable debian user (nologin, locked password, expired account)
       ansible.builtin.user:
         name: debian
         shell: /usr/sbin/nologin
         password_lock: true
         expires: 1
+
+    # Deploy nftables configuration
+    - name: Deploy nftables configuration
+      ansible.builtin.copy:
+        src: "nftables.conf"
+        dest: /etc/nftables.conf
+        owner: root
+        group: root
+        mode: "0644"
+        validate: 'sudo nft -c -f %s'
+      notify: Reload nftables
+
+    - name: Enable nftables service (do not start yet to avoid interrupting current SSH session on port 22)
+      ansible.builtin.systemd_service:
+        name: nftables
+        enabled: true
 
   handlers:
     - name: Restart ssh.socket
@@ -164,3 +172,8 @@
       ansible.builtin.systemd_service:
         name: ssh.service
         state: restarted
+
+    - name: Reload nftables
+      ansible.builtin.systemd_service:
+        name: nftables
+        state: reloaded
