@@ -1,0 +1,32 @@
+# This is the sshd server system-wide configuration file.  See
+# sshd_config(5) for more information.
+
+LogLevel VERBOSE
+
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+KbdInteractiveAuthentication no
+GSSAPIAuthentication no
+HostbasedAuthentication no
+PermitEmptyPasswords no
+UsePAM no
+PubkeyAuthentication yes
+PermitRootLogin no
+PermitUserRC no
+PermitTTY yes
+PermitTunnel yes
+
+AllowTcpForwarding yes
+
+AcceptEnv COLORTERM NO_COLOR
+
+Subsystem       sftp    /usr/lib/openssh/sftp-server
+
+ClientAliveInterval 120
+
+Banner none
+
+Match LocalPort 49152
+	AllowUsers thayen
+
+Include /etc/ssh/sshd_config.d/*.conf
