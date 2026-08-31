@@ -1,0 +1,25 @@
+#!/bin/bash
+# /usr/local/lib/pam_clear_nft_ratelimits
+# Called by PAM after successful SSH auth to remove the client from rate-limit sets
+
+[[ -z "$PAM_SERVICE" ]] && exit 0
+[[ -z "$SSH_CONNECTION" ]] && exit 0
+
+# SSH_CONNECTION is: "client_ip client_port server_ip server_port"
+CLIENT_IP=$(echo "$SSH_CONNECTION" | awk '{print $1}')
+
+if [[ "$CLIENT_IP" =~ : ]]; then
+    # IPv6 — zero out host bits to get /64 prefix
+    PREFIX=$(python3 -c "
+import ipaddress
+addr = ipaddress.ip_address('$CLIENT_IP')
+net = ipaddress.ip_network(str(addr) + '/64', strict=False)
+print(net.network_address)
+")
+    /usr/sbin/nft delete element inet firewall ssh_ratelimit_v6 "{ $PREFIX }" 2>/dev/null
+else
+    # IPv4
+    /usr/sbin/nft delete element inet firewall ssh_ratelimit_v4 "{ $CLIENT_IP }" 2>/dev/null
+fi
+
+exit 0
