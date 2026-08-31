@@ -27,7 +27,7 @@ ClientAliveInterval 120
 
 Banner none
 
+Include /etc/ssh/sshd_config.d/*.conf
+
 Match LocalPort 49152
 	AllowUsers thayen
-
-Include /etc/ssh/sshd_config.d/*.conf
